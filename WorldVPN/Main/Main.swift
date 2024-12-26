@@ -45,6 +45,8 @@ class Main: UIViewController, UIScrollViewDelegate {
         setupUI()
         setupNotifications()
         fetchMessage()
+        
+        updateAppearance()
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapGesture(_:)))
         self.view.addGestureRecognizer(tapGesture)
@@ -56,21 +58,23 @@ class Main: UIViewController, UIScrollViewDelegate {
         backgroundScroll.showsHorizontalScrollIndicator = false
         backgroundScroll.showsVerticalScrollIndicator = false
 
-        // Настройка карты
-        guard let mapImage = UIImage(named: "WorldDark") else {
-            fatalError("Изображение WorldDark не найдено")
-        }
-        backgroundView.image = mapImage
+//        // Настройка карты
+//        guard let mapImage = UIImage(named: "WorldDark") else {
+//            fatalError("Изображение WorldDark не найдено")
+//        }
+        
+//        backgroundView.image = mapImage
         backgroundView.isUserInteractionEnabled = true
         backgroundView.frame = CGRect(x: 0, y: 0, width: 3000, height: 2000)
         backgroundScroll.addSubview(backgroundView)
         backgroundScroll.contentSize = backgroundView.frame.size
 
         // Устанавливаем начальный масштаб и центрируем изображение
-        let initialZoomScale: CGFloat = 0.7
+        let initialZoomScale: CGFloat = 1
         backgroundScroll.zoomScale = initialZoomScale
 
         let offsetX = max((backgroundScroll.contentSize.width * initialZoomScale - backgroundScroll.bounds.width) / 2, 0)
+        
         let offsetY = max((backgroundScroll.contentSize.height * initialZoomScale - backgroundScroll.bounds.height) / 2, 0)
         backgroundScroll.contentOffset = CGPoint(x: offsetX, y: offsetY)
 
@@ -84,18 +88,16 @@ class Main: UIViewController, UIScrollViewDelegate {
   
     func addPointsToMap() {
         // Координаты точек на карте
-        let africaPoint = CGPoint(x: 1500, y: 1200)    // Пример координат точки в Африке
-        let americaPoint = CGPoint(x: 500, y: 800)     // Пример координат точки в Америке
-        let dubaiPoint = CGPoint(x: 1600, y: 1400)     // Координаты для Дубая
-        let netherlandsPoint = CGPoint(x: 1200, y: 500) // Координаты для Нидерландов
-        let moscowPoint = CGPoint(x: 1400, y: 600)     // Координаты для Москвы
-        let istanbulPoint = CGPoint(x: 1350, y: 900)   // Координаты для Стамбула
+        let dubaiPoint = CGPoint(x: 1860, y: 1175)     // Координаты для Дубая
+        let netherlandsPoint = CGPoint(x: 1450, y: 865) // Координаты для Нидерландов
 
         // Функция для добавления кнопки на карту
         func addButton(at point: CGPoint, color: UIColor, label: String) {
-            let button = UIButton(frame: CGRect(x: point.x, y: point.y, width: 30, height: 30))
+            let button = UIButton(frame: CGRect(x: point.x, y: point.y, width: 20, height: 20))
             button.backgroundColor = color
-            button.layer.cornerRadius = 15
+            button.layer.borderColor = UIColor.systemGray5.cgColor
+            button.layer.borderWidth = 1.5
+            button.layer.cornerRadius = button.frame.height / 2
             button.setTitle("", for: .normal)
             button.addTarget(self, action: #selector(pointTapped(_:)), for: .touchUpInside)
             backgroundView.addSubview(button)
@@ -103,15 +105,23 @@ class Main: UIViewController, UIScrollViewDelegate {
         }
 
         // Добавляем точки
-        addButton(at: africaPoint, color: .blue, label: "Африка")
-        addButton(at: americaPoint, color: .red, label: "Америка")
-        addButton(at: dubaiPoint, color: .orange, label: "Дубай")
-        addButton(at: netherlandsPoint, color: .purple, label: "Нидерланды")
-        addButton(at: moscowPoint, color: .green, label: "Москва")
-        addButton(at: istanbulPoint, color: .yellow, label: "Стамбул")
+        addButton(at: dubaiPoint, color: .systemBlue, label: "Дубай")
+        addButton(at: netherlandsPoint, color: .systemBlue, label: "Нидерланды")
     }
 
     @objc func pointTapped(_ sender: UIButton) {
+        // Убираем анимацию со всех кнопок
+        for subview in backgroundView.subviews {
+            if let button = subview as? UIButton {
+                // Удаляем все слои анимации
+                button.layer.sublayers?.removeAll(where: { $0.name == "PulsatingCircle" })
+            }
+        }
+
+        // Добавляем анимацию к выбранной кнопке
+        addPulsatingCircle(to: sender)
+
+        // Печатаем выбранное место
         if let label = sender.accessibilityLabel {
             print("\(label) выбрана")
         }
@@ -136,10 +146,19 @@ class Main: UIViewController, UIScrollViewDelegate {
     private func setupUI() {
         updateVPNButton()
         
+        countryView.layer.borderColor = UIColor.systemGray3.cgColor
+        countryView.layer.borderWidth = 1
+        
+        connect.layer.borderColor = UIColor.systemGray3.cgColor
+        connect.layer.borderWidth = 1
+        
+        
+        
         countryFlag.layer.cornerRadius = 5
         [countryView, connect].forEach { view in
             view.layer.cornerRadius = 20
         }
+        
         timeStatus.alpha = 0
         
         if let navigationBar = navigationController?.navigationBar {
@@ -153,12 +172,6 @@ class Main: UIViewController, UIScrollViewDelegate {
             navigationBar.isTranslucent = true // Делаем Navigation Bar прозрачным
         }
     }
-    
-    
-    
-    
-    
-    
     
     
     
@@ -314,35 +327,137 @@ class Main: UIViewController, UIScrollViewDelegate {
     }
 
     
-    // MARK: - VPN Connection Animation
+    // MARK: - Setup MAP
        // Функция для вычисления позиции точки на изображении карты по координатам
     func mapPointForCoordinates(latitude: Double, longitude: Double) -> CGPoint {
          // Размеры изображения карты
-         let mapWidth = backgroundView.frame.size.width
-         let mapHeight = backgroundView.frame.size.height
+        let mapWidth = backgroundScroll.frame.size.width
+         let mapHeight = backgroundScroll.frame.size.height
          
-         // Минимальные и максимальные координаты (для карты мира)
-         let minLatitude = -90.0
-         let maxLatitude = 90.0
-         let minLongitude = -180.0
-         let maxLongitude = 180.0
-         
-         let x = (longitude - minLongitude) / (maxLongitude - minLongitude) * mapWidth
-         let y = (1 - (latitude - minLatitude) / (maxLatitude - minLatitude)) * mapHeight
-         
-         return CGPoint(x: x, y: y)
+          
+         return CGPoint(x: mapWidth, y: mapHeight)
      }
     
-   
- 
+
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+        adjustButtonSizes()
+    }
+
+    func adjustButtonSizes() {
+        let currentZoomScale = backgroundScroll.zoomScale
+        let minSize: CGFloat = 10  // Минимальный размер кнопки
+        let maxSize: CGFloat = 30  // Максимальный размер кнопки
+        
+        for subview in self.backgroundView.subviews {
+            if let button = subview as? UIButton {
+                let baseSize: CGFloat = 20
+                var scaledSize = baseSize / currentZoomScale
+                
+                // Ограничиваем размер кнопки в пределах minSize и maxSize
+                scaledSize = max(minSize, min(scaledSize, maxSize))
+                
+                // Обновляем размеры и скругление кнопки
+                button.frame.size = CGSize(width: scaledSize, height: scaledSize)
+                button.layer.cornerRadius = scaledSize / 2
+                
+                // Сохраняем центр кнопки для предотвращения смещения
+                let center = button.center
+                button.center = center
+            }
+        }
+    }
     
     
     
+    
+    
+    private func addPulsatingCircle(to button: UIButton) {
+        // Удаляем старые анимации, если они есть
+        button.layer.sublayers?.removeAll(where: { $0.name == "PulsatingCircle" })
+        
+        // Функция для создания и анимации одного круга
+        func createCircleAnimation(delay: Double) {
+            let circleLayer = CAShapeLayer()
+            circleLayer.name = "PulsatingCircle"
+            
+            // Устанавливаем радиус круга больше радиуса кнопки
+            let circleRadius = button.bounds.width * 1.5 * 4
+          
+            let circlePath = UIBezierPath(ovalIn: CGRect(
+                x: (button.bounds.midX - circleRadius / 2),
+                y: (button.bounds.midY - circleRadius / 2),
+                width: circleRadius,
+                height: circleRadius
+            ))
+            
+            circleLayer.path = circlePath.cgPath
+            circleLayer.fillColor = UIColor.systemBlue.withAlphaComponent(0.3).cgColor
+            circleLayer.opacity = 0
+            
+            // Добавляем слой к кнопке
+            button.layer.insertSublayer(circleLayer, at: 0)
+            
+            // Анимация увеличения размера
+            let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
+            scaleAnimation.fromValue = 1.0
+            scaleAnimation.toValue = 2.0
+            scaleAnimation.duration = 1.5
+            scaleAnimation.beginTime = delay
+            
+            // Анимация изменения прозрачности
+            let opacityAnimation = CABasicAnimation(keyPath: "opacity")
+            opacityAnimation.fromValue = 0.8
+            opacityAnimation.toValue = 0.0
+            opacityAnimation.duration = 1.5
+            opacityAnimation.beginTime = delay
+            
+            // Групповая анимация
+            let groupAnimation = CAAnimationGroup()
+            groupAnimation.animations = [scaleAnimation, opacityAnimation]
+            groupAnimation.duration = 1.5 + delay
+            groupAnimation.repeatCount = .infinity
+            
+            circleLayer.add(groupAnimation, forKey: "Pulsating")
+        }
+        
+        // Создаем несколько кругов с задержкой
+        for i in 0..<3 {
+            createCircleAnimation(delay: Double(i) * 0.5)
+        }
+    }
+    
+    
+    
+    // MARK: - Dark Mode
+    
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        // Обрабатываем изменение темы
+        if self.traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateAppearance()
+        }
+    }
+    
+    
+    func updateAppearance() {
+        if traitCollection.userInterfaceStyle == .dark {
+            backgroundView.image = UIImage(named: "WorldDark.pdf")
+            view.backgroundColor = UIColor(hexString: "00172A")
+        } else {
+            backgroundView.image = UIImage(named: "WorldWhite.pdf")
+            view.backgroundColor = UIColor(hexString: "D4F6FF")
+        }
+    }
 }
 
     
     
     
+
+
+
+
+
     
     
     
