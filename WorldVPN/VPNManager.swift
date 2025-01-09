@@ -44,12 +44,12 @@ class VPNManager {
             }
             
             let vpnProtocol = NEVPNProtocolIPSec()
-            vpnProtocol.username = "vpnuser"
-            vpnProtocol.serverAddress = "185.103.255.104"
+            vpnProtocol.username = ""
+            vpnProtocol.serverAddress = ""
             vpnProtocol.authenticationMethod = .sharedSecret
             
-            let sharedSecretReference = KeychainHelper.saveToKeychain(data: "RJzDxhdsBZzSxK53UTCR", forKey: "VPNSharedSecret")
-            let passwordReference = KeychainHelper.saveToKeychain(data: "Tfgv8rzBdFzCzbn2", forKey: "VPNPassword")
+            let sharedSecretReference = KeychainHelper.saveToKeychain(data: "", forKey: "VPNSharedSecret")
+            let passwordReference = KeychainHelper.saveToKeychain(data: "", forKey: "VPNPassword")
             
             if sharedSecretReference == nil || passwordReference == nil {
                 print("Ошибка: Не удалось сохранить данные в Keychain")
